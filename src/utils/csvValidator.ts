@@ -58,20 +58,21 @@ export async function validateCsvContent(
     const parser = parse({
       columns: true,
       skip_empty_lines: true,
-      relax_column_count: true, // Allow parsing even with inconsistent columns
+      relax_column_count: false, // Don't allow inconsistent columns
+      trim: true
     });
 
     let headers: string[] = [];
     let rowIndex = 0;
 
     parser.on('header', (headerRow: string[]) => {
-      headers = headerRow;
-      result.columnCount = headerRow.length;
+      headers = headerRow.filter(h => h !== ''); // Filter out empty columns
+      result.columnCount = headers.length;
 
       // Validate required columns
       if (options.requiredColumns) {
         const missingColumns = options.requiredColumns.filter(
-          col => !headerRow.includes(col)
+          col => !headers.includes(col)
         );
         if (missingColumns.length > 0) {
           result.errors.push({
@@ -84,7 +85,8 @@ export async function validateCsvContent(
 
     parser.on('data', (row: Record<string, string>) => {
       rowIndex++;
-      const rowLength = Object.keys(row).length;
+      const rowValues = Object.values(row).filter(v => v !== '');
+      const rowLength = rowValues.length;
 
       // Check row length consistency
       if (rowLength !== result.columnCount) {
