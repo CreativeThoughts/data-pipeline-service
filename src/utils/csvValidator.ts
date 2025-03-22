@@ -54,12 +54,14 @@ export async function validateCsvContent(
     rowCount: 0
   };
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    let firstRow = true;
     const parser = parse({
       columns: true,
       skip_empty_lines: true,
-      relax_column_count: false, // Don't allow inconsistent columns
-      trim: true
+      relax_column_count: true, // Allow parsing with inconsistent columns for validation
+      trim: true,
+      relax_quotes: true
     });
 
     let headers: string[] = [];
@@ -68,6 +70,7 @@ export async function validateCsvContent(
     parser.on('header', (headerRow: string[]) => {
       headers = headerRow.filter(h => h !== ''); // Filter out empty columns
       result.columnCount = headers.length;
+      firstRow = false;
 
       // Validate required columns
       if (options.requiredColumns) {
@@ -85,19 +88,45 @@ export async function validateCsvContent(
 
     parser.on('data', (row: Record<string, string>) => {
       rowIndex++;
-      const rowValues = Object.values(row).filter(v => v !== '');
-      const rowLength = rowValues.length;
+      
+      // Skip validation for first row as it's the header
+      if (firstRow) {
+        firstRow = false;
+        return;
+      }
 
-      // Check row length consistency
-      if (rowLength !== result.columnCount) {
-        result.errors.push({
-          row: rowIndex,
-          message: `Inconsistent column count: expected ${result.columnCount}, got ${rowLength}`
+      // Validate data types
+      if (options.columnTypes) {
+        Object.entries(options.columnTypes).forEach(([column, expectedType]) => {
+          const value = row[column];
+          if (value !== undefined && value.trim() !== '') {
+            if (!validateDataType(value.trim(), expectedType)) {
+              result.errors.push({
+                row: rowIndex,
+                column,
+                message: `Invalid ${expectedType} value '${value}' in column '${column}'`
+              });
+            }
+          }
+        });
+      }
+
+      // Check for empty values
+      if (!options.allowEmptyValues) {
+        Object.entries(row).forEach(([column, value]) => {
+          if (value === undefined || value.trim() === '') {
+            result.errors.push({
+              row: rowIndex,
+              column,
+              message: `Empty value not allowed in column '${column}'`
+            });
+          }
         });
       }
 
       // Check maximum row length
-      if (options.maxRowLength && rowLength > options.maxRowLength) {
+      const currentRowLength = Object.keys(row).length;
+      if (options.maxRowLength && currentRowLength > options.maxRowLength) {
         result.errors.push({
           row: rowIndex,
           message: `Row exceeds maximum length of ${options.maxRowLength}`
@@ -132,6 +161,16 @@ export async function validateCsvContent(
     parser.on('end', () => {
       result.rowCount = rowIndex;
       result.isValid = result.errors.length === 0;
+      
+      // If there are validation errors, reject the promise
+      if (!result.isValid) {
+        const errorMessage = result.errors
+          .map(err => `Row ${err.row}${err.column ? `, Column ${err.column}` : ''}: ${err.message}`)
+          .join('\n');
+        reject(new Error(`CSV validation failed:\n${errorMessage}`));
+        return;
+      }
+      
       resolve(result);
     });
 
@@ -141,7 +180,7 @@ export async function validateCsvContent(
         message: `Parsing error: ${error.message}`
       });
       result.isValid = false;
-      resolve(result);
+      reject(new Error(`CSV parsing error: ${error.message}`));
     });
 
     parser.write(csvContent);
@@ -150,15 +189,16 @@ export async function validateCsvContent(
 }
 
 function validateDataType(value: string, type: string): boolean {
+  const trimmedValue = value.trim();
   switch (type) {
     case 'number':
-      return !isNaN(Number(value)) && value.trim() !== '';
+      return !isNaN(Number(trimmedValue)) && trimmedValue !== '';
     case 'boolean':
-      return ['true', 'false', '0', '1'].includes(value.toLowerCase());
+      return ['true', 'false', '0', '1'].includes(trimmedValue.toLowerCase());
     case 'date':
-      return !isNaN(Date.parse(value));
+      return !isNaN(Date.parse(trimmedValue));
     case 'string':
-      return true;
+      return trimmedValue !== '';
     default:
       return false;
   }
