@@ -7,15 +7,21 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-csv": "ts-node src/utils/test-csv.ts"
   },
-  "keywords": ["etl", "pipeline", "data"],
+  "keywords": [
+    "etl",
+    "pipeline",
+    "data"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "@types/express": "^5.0.1",
     "@types/node": "^22.13.11",
+    "csv-parse": "^5.6.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "ts-node": "^10.9.2",
