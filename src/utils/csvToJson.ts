@@ -1,6 +1,7 @@
 import { parse } from 'csv-parse';
 import fs from 'fs';
 import { promisify } from 'util';
+import { validateCsvFile, validateCsvContent, CsvValidationOptions } from './csvValidator';
 
 const readFile = promisify(fs.readFile);
 
@@ -9,6 +10,7 @@ interface CsvToJsonOptions {
   skipEmptyLines?: boolean;
   trimValues?: boolean;
   headers?: string[] | boolean;
+  validation?: CsvValidationOptions;
 }
 
 /**
@@ -22,6 +24,18 @@ export async function csvToJson(
   options: CsvToJsonOptions = {}
 ): Promise<Record<string, any>[]> {
   try {
+    // Validate the CSV file if validation options are provided
+    if (options.validation) {
+      const validationResult = await validateCsvFile(filePath, options.validation);
+      if (!validationResult.isValid) {
+        throw new Error(
+          `CSV validation failed:\n${validationResult.errors
+            .map(err => `Row ${err.row}${err.column ? `, Column ${err.column}` : ''}: ${err.message}`)
+            .join('\n')}`
+        );
+      }
+    }
+
     // Read the CSV file
     const fileContent = await readFile(filePath, 'utf-8');
 
@@ -60,6 +74,17 @@ export async function csvStringToJson(
   options: CsvToJsonOptions = {}
 ): Promise<Record<string, any>[]> {
   try {
+    // Validate the CSV content if validation options are provided
+    if (options.validation) {
+      const validationResult = await validateCsvContent(csvString, options.validation);
+      if (!validationResult.isValid) {
+        throw new Error(
+          `CSV validation failed:\n${validationResult.errors
+            .map(err => `Row ${err.row}${err.column ? `, Column ${err.column}` : ''}: ${err.message}`)
+            .join('\n')}`
+        );
+      }
+    }
     // Default options
     const parseOptions = {
       delimiter: options.delimiter || ',',
