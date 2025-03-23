@@ -85,8 +85,8 @@ export async function validateCsvContent(
         if (options.columnTypes) {
           for (const [column, expectedType] of Object.entries(options.columnTypes)) {
             const value = record[column];
-            if (value !== undefined && value.trim() !== '') {
-              if (!validateDataType(value.trim(), expectedType)) {
+            if (value !== undefined) {
+              if (!validateDataType(value, expectedType, options.allowEmptyValues)) {
                 result.errors.push({
                   row: context.lines,
                   column,
@@ -175,7 +175,7 @@ export async function validateCsvContent(
         // Validate data types
         if (options.columnTypes?.[column]) {
           const type = options.columnTypes[column];
-          if (!validateDataType(value, type)) {
+          if (!validateDataType(value, type, options.allowEmptyValues)) {
             result.errors.push({
               row: rowIndex,
               column,
@@ -218,8 +218,11 @@ export async function validateCsvContent(
   });
 }
 
-function validateDataType(value: string, type: string): boolean {
+function validateDataType(value: string, type: string, allowEmpty: boolean = false): boolean {
   const trimmedValue = value.trim();
+  if (allowEmpty && trimmedValue === '') {
+    return true;
+  }
   switch (type) {
     case 'number':
       return !isNaN(Number(trimmedValue)) && trimmedValue !== '';
@@ -228,7 +231,7 @@ function validateDataType(value: string, type: string): boolean {
     case 'date':
       return !isNaN(Date.parse(trimmedValue));
     case 'string':
-      return trimmedValue !== '';
+      return true;
     default:
       return false;
   }

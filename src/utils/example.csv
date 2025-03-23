@@ -1,4 +1,4 @@
-name,age,city
-John Doe,30,New York
-Jane Smith,25,Los Angeles
-Bob Johnson,35,Chicago
+name,age,city,zip
+John Doe,30,New York,10001
+Jane Smith,25,Los Angeles,
+Bob Johnson,,Chicago,60601
