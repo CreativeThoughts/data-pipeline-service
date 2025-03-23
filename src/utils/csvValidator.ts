@@ -56,34 +56,58 @@ export async function validateCsvContent(
 
   return new Promise((resolve, reject) => {
     let firstRow = true;
+    // First, validate the headers
+    const firstLine = csvContent.split('\n')[0];
+    const headerRow = firstLine.split(',').map(h => h.trim());
+    
+    if (options.requiredColumns) {
+      const missingColumns = options.requiredColumns.filter(
+        col => !headerRow.includes(col)
+      );
+      if (missingColumns.length > 0) {
+        result.errors.push({
+          row: 0,
+          message: `Missing required columns: ${missingColumns.join(', ')}`
+        });
+        reject(new Error(`Missing required columns: ${missingColumns.join(', ')}`));
+        return;
+      }
+    }
+
     const parser = parse({
       columns: true,
       skip_empty_lines: true,
-      relax_column_count: true, // Allow parsing with inconsistent columns for validation
+      relax_column_count: false, // Don't allow inconsistent columns
       trim: true,
-      relax_quotes: true
+      relax_quotes: true,
+      on_record: (record: Record<string, string>, context: { lines: number }) => {
+        // Validate data types
+        if (options.columnTypes) {
+          for (const [column, expectedType] of Object.entries(options.columnTypes)) {
+            const value = record[column];
+            if (value !== undefined && value.trim() !== '') {
+              if (!validateDataType(value.trim(), expectedType)) {
+                result.errors.push({
+                  row: context.lines,
+                  column,
+                  message: `Invalid ${expectedType} value '${value}' in column '${column}'`
+                });
+                throw new Error(`Invalid ${expectedType} value '${value}' in column '${column}'`);
+              }
+            }
+          }
+        }
+        return record;
+      }
     });
 
     let headers: string[] = [];
     let rowIndex = 0;
 
-    parser.on('header', (headerRow: string[]) => {
+    parser.on('headers', (headerRow: string[]) => {
       headers = headerRow.filter(h => h !== ''); // Filter out empty columns
       result.columnCount = headers.length;
       firstRow = false;
-
-      // Validate required columns
-      if (options.requiredColumns) {
-        const missingColumns = options.requiredColumns.filter(
-          col => !headers.includes(col)
-        );
-        if (missingColumns.length > 0) {
-          result.errors.push({
-            row: 0,
-            message: `Missing required columns: ${missingColumns.join(', ')}`
-          });
-        }
-      }
     });
 
     parser.on('data', (row: Record<string, string>) => {
@@ -106,6 +130,8 @@ export async function validateCsvContent(
                 column,
                 message: `Invalid ${expectedType} value '${value}' in column '${column}'`
               });
+              reject(new Error(`Invalid ${expectedType} value '${value}' in column '${column}'`));
+              return;
             }
           }
         });
@@ -134,7 +160,7 @@ export async function validateCsvContent(
       }
 
       // Validate data types and empty values
-      Object.entries(row).forEach(([column, value]) => {
+      for (const [column, value] of Object.entries(row)) {
         // Check for empty values
         if (!options.allowEmptyValues && !value.trim()) {
           result.errors.push({
@@ -142,6 +168,8 @@ export async function validateCsvContent(
             column,
             message: `Empty value not allowed in column '${column}'`
           });
+          reject(new Error(`Empty value not allowed in column '${column}'`));
+          return;
         }
 
         // Validate data types
@@ -153,9 +181,11 @@ export async function validateCsvContent(
               column,
               message: `Invalid ${type} value '${value}' in column '${column}'`
             });
+            reject(new Error(`Invalid ${type} value '${value}' in column '${column}'`));
+            return;
           }
         }
-      });
+      }
     });
 
     parser.on('end', () => {
