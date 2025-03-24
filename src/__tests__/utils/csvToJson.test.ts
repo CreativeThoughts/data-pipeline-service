@@ -4,12 +4,13 @@ import path from 'path';
 
 describe('CSV to JSON Conversion', () => {
   const validationOptions: CsvValidationOptions = {
-    requiredColumns: ['name', 'age', 'city', 'zip'],
+    requiredColumns: ['name', 'age', 'city', 'zip', 'country'],
     columnTypes: {
       age: 'number',
       name: 'string',
       city: 'string',
-      zip: 'string'
+      zip: 'string',
+      country: 'string'
     },
     allowEmptyValues: true
   };
@@ -28,17 +29,18 @@ describe('CSV to JSON Conversion', () => {
         name: 'John Doe',
         age: '30',
         city: 'New York',
-        zip: '10001'
+        zip: '10001',
+        country: 'USA'
       });
     });
   });
 
   describe('String Conversion', () => {
     it('should successfully convert a valid CSV string to JSON', async () => {
-      const csvString = `name,age,city,zip
-John Doe,30,New York,10001
-Jane Smith,25,Los Angeles,90001
-Bob Johnson,35,Chicago,60601`;
+      const csvString = `name,age,city,zip,country
+John Doe,30,New York,10001,USA
+Jane Smith,25,Los Angeles,90001,USA
+Bob Johnson,35,Chicago,60601,USA`;
 
       const result = await csvStringToJson(csvString, {
         validation: validationOptions,
@@ -50,15 +52,16 @@ Bob Johnson,35,Chicago,60601`;
         name: 'Jane Smith',
         age: '25',
         city: 'Los Angeles',
-        zip: '90001'
+        zip: '90001',
+        country: 'USA'
       });
     });
   });
 
   describe('Validation', () => {
     it('should reject invalid data types', async () => {
-      const invalidCsvString = `name,age,city,zip
-John Doe,invalid,New York,10001`;
+      const invalidCsvString = `name,age,city,zip,country
+John Doe,invalid,New York,10001,USA`;
 
       await expect(csvStringToJson(invalidCsvString, {
         validation: validationOptions
@@ -66,8 +69,8 @@ John Doe,invalid,New York,10001`;
     });
 
     it('should reject missing required columns', async () => {
-      const missingColumnCsv = `name,city,zip
-John Doe,New York,10001`;
+      const missingColumnCsv = `name,city,zip,country
+John Doe,New York,10001,USA`;
 
       await expect(csvStringToJson(missingColumnCsv, {
         validation: validationOptions
